@@ -76,22 +76,34 @@ if prompt := st.chat_input("What would you like to chat about?"):
         if obnoxious_prompt:
             assistant_response = "I can't answer this, because its obnoxious prompt"
         else:
-            
-            doc = st.session_state["head_agent"].Query_Agent.query_vector_store(prompt)
-            print(f"Matches found: {len(doc.matches)}")
-            if doc.matches:
-                print(f"First match metadat: {doc.matches[0].metadata.keys()}")
-                print(f"First match score: {doc.matches[0].score}")
-                
-            doc_text = [match.metadata.get('text', '') for match in doc.matches[:5]]
-            context = "\n".join(doc_text)
-            relevance = st.session_state["head_agent"].Relevant_Documents_Agent.get_relevance(f"Query:{prompt}, Docs: {context}")
-            print(f"Relevance : {relevance}")
-            print(f"Text : {context[:500]}")
-            if "yes" in relevance.lower():
-                assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(prompt, doc, st.session_state["messages"][:-1])
+            # Extract only the ML-relevant portion for hybrid queries
+            extract_response = client.chat.completions.create(
+                model=st.session_state["openai_model"],
+                messages=[
+                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. If the entire input is ML-related, return it as-is. If there is no ML-related question, return 'NONE'."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            ml_query = extract_response.choices[0].message.content.strip()
+
+            if ml_query == "NONE":
+                assistant_response = "I couln't answer this, because its irrelevant"
             else:
-                assistant_response = "I couldn't find relevant documents to answer this question."
+                doc = st.session_state["head_agent"].Query_Agent.query_vector_store(ml_query)
+                print(f"Matches found: {len(doc.matches)}")
+                if doc.matches:
+                    print(f"First match metadat: {doc.matches[0].metadata.keys()}")
+                    print(f"First match score: {doc.matches[0].score}")
+
+                doc_text = [match.metadata.get('text', '') for match in doc.matches[:5]]
+                context = "\n".join(doc_text)
+                relevance = st.session_state["head_agent"].Relevant_Documents_Agent.get_relevance(f"Query:{ml_query}, Docs: {context}")
+                print(f"Relevance : {relevance}")
+                print(f"Text : {context[:500]}")
+                if "yes" in relevance.lower():
+                    assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["messages"][:-1])
+                else:
+                    assistant_response = "I couldn't find relevant documents to answer this question."
         st.markdown(assistant_response)
 
     # ... (append AI response to messages)
