@@ -334,15 +334,37 @@ class EvaluationPipeline:
                 bot_response = "I can't answer this, because its obnoxious prompt"
                 agent_used = "Obnoxious_Agent"
             else:
-                docs = self.chatbot.Query_Agent.query_vector_store(test_case)
+                # Extract ML-relevant portion for hybrid queries
+                if category == "hybrid":
+                    extract_response = self.chatbot.client.chat.completions.create(
+                        model="gpt-4.1-nano",
+                        messages=[
+                            {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. If the entire input is ML-related, return it as-is. If there is no ML-related question, return 'NONE'."},
+                            {"role": "user", "content": test_case}
+                        ]
+                    )
+                    query = extract_response.choices[0].message.content.strip()
+                    if query == "NONE":
+                        bot_response = "I couln't answer this, because its irrelevant"
+                        agent_used = "Relevant_Documents_Agent"
+                        score = self.judge.evaluate_interaction(test_case, bot_response, agent_used, category)
+                        self.results[category].append(score)
+                        print(f"Query: {test_case[:50]}")
+                        print(f"Bot response: {bot_response[:100]}")
+                        print(f"Score: {score}")
+                        print("---")
+                        continue
+                else:
+                    query = test_case
+
+                docs = self.chatbot.Query_Agent.query_vector_store(query)
                 doc_text = [doc.metadata.get('text', '') for doc in docs.matches[:5]]
                 context = '\n'.join(doc_text)
-                relevance = self.chatbot.Relevant_Documents_Agent.get_relevance(f"Query:{test_case}, Docs: {context}")
-                if "yes" in relevance.lower():
-                    bot_response = self.chatbot.Answering_Agent.generate_response(test_case, docs, [])
+                if docs.matches and docs.matches[0].score > 0.4:
+                    bot_response = self.chatbot.Answering_Agent.generate_response(query, docs, [])
                     agent_used = "Answering_Agent"
                 else:
-                    bot_response ="I couln't answer this, because its irrelevant"
+                    bot_response = "I couln't answer this, because its irrelevant"
                     agent_used = "Relevant_Documents_Agent"
             score = self.judge.evaluate_interaction(test_case, bot_response, agent_used, category)
             self.results[category].append(score)
