@@ -60,6 +60,17 @@ if prompt := st.chat_input("What would you like to chat about?"):
         st.markdown(prompt)
     # Generate AI response
     with st.chat_message("assistant"):
+        # ... (send request to OpenAI API)
+        # response = client.chat.completions.create(
+        #     model=st.session_state["openai_model"],
+        #     messages=[
+        #         {"role": "system", "content": "You are a helpful assistant that answers questions"},
+        #         *st.session_state.messages
+        #     ]
+        # )
+        # # ... (get AI response and display it)
+        # assistant_response = response.choices[0].message.content
+        # st.markdown(assistant_response)
         obnoxious = st.session_state["head_agent"].Obnoxious_Agent.check_query(prompt)
         obnoxious_prompt = st.session_state["head_agent"].Obnoxious_Agent.extract_action(obnoxious)
         if obnoxious_prompt:
@@ -69,13 +80,13 @@ if prompt := st.chat_input("What would you like to chat about?"):
             extract_response = client.chat.completions.create(
                 model=st.session_state["openai_model"],
                 messages=[
-                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. If the entire input is ML-related, return it as-is. If there is no ML-related question, return 'NONE'."},
+                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, and similar topics. If you find an ML-related question, return it as a standalone question. If there is absolutely no ML-related question, return 'NONE'."},
                     {"role": "user", "content": prompt}
                 ]
             )
             ml_query = extract_response.choices[0].message.content.strip()
 
-            if ml_query == "NONE":
+            if ml_query.upper() == "NONE":
                 assistant_response = "I couln't answer this, because its irrelevant"
             else:
                 doc = st.session_state["head_agent"].Query_Agent.query_vector_store(ml_query)
