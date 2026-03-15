@@ -60,17 +60,6 @@ if prompt := st.chat_input("What would you like to chat about?"):
         st.markdown(prompt)
     # Generate AI response
     with st.chat_message("assistant"):
-        # ... (send request to OpenAI API)
-        # response = client.chat.completions.create(
-        #     model=st.session_state["openai_model"],
-        #     messages=[
-        #         {"role": "system", "content": "You are a helpful assistant that answers questions"},
-        #         *st.session_state.messages
-        #     ]
-        # )
-        # # ... (get AI response and display it)
-        # assistant_response = response.choices[0].message.content
-        # st.markdown(assistant_response)
         obnoxious = st.session_state["head_agent"].Obnoxious_Agent.check_query(prompt)
         obnoxious_prompt = st.session_state["head_agent"].Obnoxious_Agent.extract_action(obnoxious)
         if obnoxious_prompt:
@@ -97,10 +86,8 @@ if prompt := st.chat_input("What would you like to chat about?"):
 
                 doc_text = [match.metadata.get('text', '') for match in doc.matches[:5]]
                 context = "\n".join(doc_text)
-                relevance = st.session_state["head_agent"].Relevant_Documents_Agent.get_relevance(f"Query:{ml_query}, Docs: {context}")
-                print(f"Relevance : {relevance}")
                 print(f"Text : {context[:500]}")
-                if "yes" in relevance.lower():
+                if doc.matches and doc.matches[0].score > 0.4:
                     assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["messages"][:-1])
                 else:
                     assistant_response = "I couldn't find relevant documents to answer this question."
