@@ -1,6 +1,6 @@
 # Import the necessary libraries
 import streamlit as st
-from openai import OpenAI  
+from openai import OpenAI
 import numpy as np
 import os
 from dotenv import load_dotenv
