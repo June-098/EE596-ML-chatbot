@@ -1,6 +1,6 @@
 # Import the necessary libraries
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI  
 import numpy as np
 import os
 from dotenv import load_dotenv
@@ -51,12 +51,10 @@ for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-#Greetings:
 GREETING_PATTERNS = re.compile(
     r"^\s*(hi|hello|hey|howdy|wassup|what'?s up|good\s+(morning|afternoon|evening)|how are you)\W*$",
     re.IGNORECASE
 )
-
 # Wait for user input
 if prompt := st.chat_input("What would you like to chat about?"):
     # ... (append user message to messages)
@@ -68,6 +66,7 @@ if prompt := st.chat_input("What would you like to chat about?"):
         st.markdown(prompt)
     # Generate AI response
     with st.chat_message("assistant"):
+
         if GREETING_PATTERNS.match(prompt):
             assistant_response = "Hello! How can I assist you with machine learning today?"
         else:
@@ -76,16 +75,12 @@ if prompt := st.chat_input("What would you like to chat about?"):
             if obnoxious_prompt:
                 assistant_response = "I can't answer this, because its obnoxious prompt"
             else:
-                # Extract only the ML-relevant portion for hybrid queries
-                # Include conv_hist so follow-up questions (e.g. "can you describe more?") resolve correctly
-                extract_messages = [
-                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, probabilistic modeling, gaussian distributions, Bayesian methods, covariate shift, domain adaptation, dimensionality reduction, kernel methods, expectation maximization, and any other statistics or math concepts commonly used in machine learning. If the user's message is a follow-up or refers to a previous topic (e.g. 'can you describe more?', 'give me an example'), rewrite it as a standalone ML question using the conversation history. If there is absolutely no ML-related question even considering prior context, return 'NONE'."},
-                ]
-                extract_messages.extend(st.session_state["conv_hist"])
-                extract_messages.append({"role": "user", "content": prompt})
                 extract_response = client.chat.completions.create(
-                    model=st.session_state["openai_model"],
-                    messages=extract_messages
+                model=st.session_state["openai_model"],
+                messages=[
+                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, and similar topics. If you find an ML-related question, return it as a standalone question. If there is absolutely no ML-related question, return 'NONE'."},
+                    {"role": "user", "content": prompt}
+                ]
                 )
                 ml_query = extract_response.choices[0].message.content.strip()
 
@@ -102,12 +97,10 @@ if prompt := st.chat_input("What would you like to chat about?"):
                     context = "\n".join(doc_text)
                     print(f"Text : {context[:500]}")
                     if doc.matches and doc.matches[0].score > 0.4:
-                        assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["conv_hist"])
-                        st.session_state["conv_hist"].append({"role": "user", "content": ml_query})
-                        st.session_state["conv_hist"].append({"role": "assistant", "content": assistant_response})
+                        assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["messages"][:-1])
                     else:
                         assistant_response = "I couldn't find relevant documents to answer this question."
         st.markdown(assistant_response)
 
-    # ... (append AI response to messages)
+        # ... (append AI response to messages)
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
