@@ -77,12 +77,15 @@ if prompt := st.chat_input("What would you like to chat about?"):
                 assistant_response = "I can't answer this, because its obnoxious prompt"
             else:
                 # Extract only the ML-relevant portion for hybrid queries
+                # Include conv_hist so follow-up questions (e.g. "can you describe more?") resolve correctly
+                extract_messages = [
+                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, probabilistic modeling, gaussian distributions, Bayesian methods, covariate shift, domain adaptation, dimensionality reduction, kernel methods, expectation maximization, and any other statistics or math concepts commonly used in machine learning. If the user's message is a follow-up or refers to a previous topic (e.g. 'can you describe more?', 'give me an example'), rewrite it as a standalone ML question using the conversation history. If there is absolutely no ML-related question even considering prior context, return 'NONE'."},
+                ]
+                extract_messages.extend(st.session_state["conv_hist"])
+                extract_messages.append({"role": "user", "content": prompt})
                 extract_response = client.chat.completions.create(
                     model=st.session_state["openai_model"],
-                    messages=[
-                        {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, and similar topics. If you find an ML-related question, return it as a standalone question. If there is absolutely no ML-related question, return 'NONE'."},
-                        {"role": "user", "content": prompt}
-                    ]
+                    messages=extract_messages
                 )
                 ml_query = extract_response.choices[0].message.content.strip()
 
