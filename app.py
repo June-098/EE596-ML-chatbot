@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from agent import Obnoxious_Agent,Head_Agent, Query_Agent, Answering_Agent, Relevant_Documents_Agent
 from pinecone import Pinecone
+import re
 
 load_dotenv()
 openai_key = os.getenv('OPENAI_API_KEY')
@@ -41,13 +42,20 @@ if "messages" not in st.session_state:
     # ... (initialize messages)
     st.session_state["messages"] = []
 
+if "conv_hist" not in st.session_state:
+    st.session_state["conv_hist"] = []
+
 # Display existing chat messages
 # ... (code for displaying messages)
 for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Handle user input
+#Greetings:
+GREETING_PATTERNS = re.compile(
+    r"^\s*(hi|hello|hey|howdy|wassup|what'?s up|good\s+(morning|afternoon|evening)|how are you)\W*$",
+    re.IGNORECASE
+)
 
 # Wait for user input
 if prompt := st.chat_input("What would you like to chat about?"):
@@ -60,48 +68,42 @@ if prompt := st.chat_input("What would you like to chat about?"):
         st.markdown(prompt)
     # Generate AI response
     with st.chat_message("assistant"):
-        # ... (send request to OpenAI API)
-        # response = client.chat.completions.create(
-        #     model=st.session_state["openai_model"],
-        #     messages=[
-        #         {"role": "system", "content": "You are a helpful assistant that answers questions"},
-        #         *st.session_state.messages
-        #     ]
-        # )
-        # # ... (get AI response and display it)
-        # assistant_response = response.choices[0].message.content
-        # st.markdown(assistant_response)
-        obnoxious = st.session_state["head_agent"].Obnoxious_Agent.check_query(prompt)
-        obnoxious_prompt = st.session_state["head_agent"].Obnoxious_Agent.extract_action(obnoxious)
-        if obnoxious_prompt:
-            assistant_response = "I can't answer this, because its obnoxious prompt"
+        if GREETING_PATTERNS.match(prompt):
+            assistant_response = "Hello! How can I assist you with machine learning today?"
         else:
-            # Extract only the ML-relevant portion for hybrid queries
-            extract_response = client.chat.completions.create(
-                model=st.session_state["openai_model"],
-                messages=[
-                    {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, and similar topics. If you find an ML-related question, return it as a standalone question. If there is absolutely no ML-related question, return 'NONE'."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            ml_query = extract_response.choices[0].message.content.strip()
-
-            if ml_query.upper() == "NONE":
-                assistant_response = "I couln't answer this, because its irrelevant"
+            obnoxious = st.session_state["head_agent"].Obnoxious_Agent.check_query(prompt)
+            obnoxious_prompt = st.session_state["head_agent"].Obnoxious_Agent.extract_action(obnoxious)
+            if obnoxious_prompt:
+                assistant_response = "I can't answer this, because its obnoxious prompt"
             else:
-                doc = st.session_state["head_agent"].Query_Agent.query_vector_store(ml_query)
-                print(f"Matches found: {len(doc.matches)}")
-                if doc.matches:
-                    print(f"First match metadat: {doc.matches[0].metadata.keys()}")
-                    print(f"First match score: {doc.matches[0].score}")
+                # Extract only the ML-relevant portion for hybrid queries
+                extract_response = client.chat.completions.create(
+                    model=st.session_state["openai_model"],
+                    messages=[
+                        {"role": "system", "content": "Extract only the machine learning or AI related question from the user's input. Machine learning topics include: decision trees, neural networks, perceptrons, gradient descent, SVMs, kernel methods, bias-variance tradeoff, unsupervised learning, clustering, classification, regression, ensemble methods, and similar topics. If you find an ML-related question, return it as a standalone question. If there is absolutely no ML-related question, return 'NONE'."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                ml_query = extract_response.choices[0].message.content.strip()
 
-                doc_text = [match.metadata.get('text', '') for match in doc.matches[:5]]
-                context = "\n".join(doc_text)
-                print(f"Text : {context[:500]}")
-                if doc.matches and doc.matches[0].score > 0.4:
-                    assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["messages"][:-1])
+                if ml_query.upper() == "NONE":
+                    assistant_response = "I couln't answer this, because its irrelevant"
                 else:
-                    assistant_response = "I couldn't find relevant documents to answer this question."
+                    doc = st.session_state["head_agent"].Query_Agent.query_vector_store(ml_query)
+                    print(f"Matches found: {len(doc.matches)}")
+                    if doc.matches:
+                        print(f"First match metadat: {doc.matches[0].metadata.keys()}")
+                        print(f"First match score: {doc.matches[0].score}")
+
+                    doc_text = [match.metadata.get('text', '') for match in doc.matches[:5]]
+                    context = "\n".join(doc_text)
+                    print(f"Text : {context[:500]}")
+                    if doc.matches and doc.matches[0].score > 0.4:
+                        assistant_response = st.session_state["head_agent"].Answering_Agent.generate_response(ml_query, doc, st.session_state["conv_hist"])
+                        st.session_state["conv_hist"].append({"role": "user", "content": ml_query})
+                        st.session_state["conv_hist"].append({"role": "assistant", "content": assistant_response})
+                    else:
+                        assistant_response = "I couldn't find relevant documents to answer this question."
         st.markdown(assistant_response)
 
     # ... (append AI response to messages)
